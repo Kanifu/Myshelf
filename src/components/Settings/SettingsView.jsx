@@ -1,15 +1,20 @@
 import { useState } from 'react'
 import { usePreferencesStore, GENRE_OPTIONS } from '../../store/preferencesStore'
+import { useLibraryStore } from '../../store/libraryStore'
+import { booksToCsv, parseLibraryCsv } from '../../services/koboService'
 
 export default function SettingsView() {
   const prefs = usePreferencesStore()
+  const { books, importBooks } = useLibraryStore()
 
   const [claudeApiKey, setClaudeApiKey] = useState(prefs.claudeApiKey)
   const [googleBooksApiKey, setGoogleBooksApiKey] = useState(prefs.googleBooksApiKey)
   const [preferredGenres, setPreferredGenres] = useState(prefs.preferredGenres)
   const [preferredLanguage, setPreferredLanguage] = useState(prefs.preferredLanguage)
   const [koboPlusSubscriber, setKoboPlusSubscriber] = useState(prefs.koboPlusSubscriber)
+  const [readingPaceGoal, setReadingPaceGoal] = useState(prefs.readingPaceGoal || '')
   const [saved, setSaved] = useState(false)
+  const [importMessage, setImportMessage] = useState('')
   const [showClaudeKey, setShowClaudeKey] = useState(false)
   const [showGoogleKey, setShowGoogleKey] = useState(false)
 
@@ -26,9 +31,50 @@ export default function SettingsView() {
       preferredGenres,
       preferredLanguage,
       koboPlusSubscriber,
+      readingPaceGoal: readingPaceGoal ? Number(readingPaceGoal) : null,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+  }
+
+  function downloadFile(filename, content, type) {
+    const blob = new Blob([content], { type })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportJson() {
+    downloadFile('myshelf-library.json', JSON.stringify({ exportedAt: new Date().toISOString(), books }, null, 2), 'application/json')
+  }
+
+  function exportCsv() {
+    downloadFile('myshelf-library.csv', booksToCsv(books), 'text/csv')
+  }
+
+  async function handleImport(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const imported =
+        file.name.toLowerCase().endsWith('.json')
+          ? JSON.parse(text).books || JSON.parse(text)
+          : parseLibraryCsv(text)
+
+      if (!Array.isArray(imported)) throw new Error('Import file does not contain a book list')
+      const count = await importBooks(imported)
+      setImportMessage(`Imported ${count} ${count === 1 ? 'book' : 'books'}.`)
+    } catch (error) {
+      setImportMessage(error.message || 'Import failed.')
+    } finally {
+      event.target.value = ''
+      setTimeout(() => setImportMessage(''), 3500)
+    }
   }
 
   return (
@@ -66,6 +112,7 @@ export default function SettingsView() {
                 <button
                   type="button"
                   onClick={() => setShowClaudeKey((v) => !v)}
+                  aria-label={showClaudeKey ? 'Hide Claude API key' : 'Show Claude API key'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                 >
                   {showClaudeKey ? (
@@ -110,6 +157,7 @@ export default function SettingsView() {
                 <button
                   type="button"
                   onClick={() => setShowGoogleKey((v) => !v)}
+                  aria-label={showGoogleKey ? 'Hide Google Books API key' : 'Show Google Books API key'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                 >
                   {showGoogleKey ? (
@@ -188,6 +236,7 @@ export default function SettingsView() {
             <button
               type="button"
               onClick={() => setKoboPlusSubscriber((v) => !v)}
+              aria-label="Toggle Kobo Plus subscriber"
               className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
                 koboPlusSubscriber ? 'bg-amber-500' : 'bg-slate-600'
               }`}
@@ -199,6 +248,51 @@ export default function SettingsView() {
               />
             </button>
           </div>
+        </section>
+
+        {/* Reading Goal */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Reading Pace</h2>
+          <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
+            <label className="block text-sm font-medium text-slate-200 mb-2">
+              Books per month goal
+            </label>
+            <input
+              value={readingPaceGoal}
+              onChange={(e) => setReadingPaceGoal(e.target.value)}
+              inputMode="numeric"
+              placeholder="2"
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+            />
+          </div>
+        </section>
+
+        {/* Data */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Library Data</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={exportJson}
+              className="py-3 rounded-xl border border-slate-700 text-slate-300 text-sm font-semibold hover:border-slate-600"
+            >
+              Export JSON
+            </button>
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="py-3 rounded-xl border border-slate-700 text-slate-300 text-sm font-semibold hover:border-slate-600"
+            >
+              Export CSV
+            </button>
+          </div>
+          <label className="mt-2 flex items-center justify-center py-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-sm font-semibold cursor-pointer hover:border-amber-500/40">
+            Import JSON or Kobo CSV
+            <input type="file" accept=".json,.csv,text/csv,application/json" onChange={handleImport} className="hidden" />
+          </label>
+          {importMessage && (
+            <p className="mt-2 text-xs text-amber-400">{importMessage}</p>
+          )}
         </section>
 
         {/* Save button */}
