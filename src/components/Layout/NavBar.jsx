@@ -29,6 +29,15 @@ export default function NavBar({ activeTab, setActiveTab }) {
       ),
     },
     {
+      id: 'series',
+      label: 'Series',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5A2.25 2.25 0 016.75 17.25h10.5A2.25 2.25 0 0119.5 19.5m-15 0A2.25 2.25 0 006.75 21.75h10.5A2.25 2.25 0 0019.5 19.5m-15 0v-12A2.25 2.25 0 016.75 5.25h10.5A2.25 2.25 0 0119.5 7.5v12" />
+        </svg>
+      ),
+    },
+    {
       id: 'settings',
       label: 'Settings',
       icon: (
@@ -50,6 +59,7 @@ export default function NavBar({ activeTab, setActiveTab }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                aria-label={tab.label}
                 className="flex flex-col items-center justify-center flex-1 py-3 gap-0.5"
               >
                 <span className={`p-2 rounded-full transition-colors ${isActive ? 'bg-amber-500 text-slate-900' : 'bg-amber-500/20 text-amber-400'}`}>
@@ -62,6 +72,7 @@ export default function NavBar({ activeTab, setActiveTab }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              aria-label={tab.label}
               className={`flex flex-col items-center justify-center flex-1 py-3 gap-0.5 transition-colors ${
                 isActive ? 'text-amber-400' : 'text-slate-500 hover:text-slate-300'
               }`}

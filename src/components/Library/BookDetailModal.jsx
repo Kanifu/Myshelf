@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLibraryStore } from '../../store/libraryStore'
+import { getKoboSearchUrl } from '../../services/koboService'
 
 const STATUS_OPTIONS = [
   { value: 'read', label: 'Read', className: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
@@ -39,12 +40,25 @@ export default function BookDetailModal({ book, onClose }) {
   const [status, setStatus] = useState(book.readingStatus)
   const [rating, setRating] = useState(book.rating)
   const [note, setNote] = useState(book.note || '')
+  const [seriesName, setSeriesName] = useState(book.series?.name || '')
+  const [seriesVolume, setSeriesVolume] = useState(book.series?.volume || '')
+  const [tags, setTags] = useState(book.tags?.join(', ') || '')
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleSave() {
     setSaving(true)
-    await updateBook(book.id, { readingStatus: status, rating, note })
+    await updateBook(book.id, {
+      readingStatus: status,
+      rating,
+      note,
+      tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      series: {
+        ...(book.series || {}),
+        name: seriesName.trim() || null,
+        volume: seriesVolume ? Number(seriesVolume) : null,
+      },
+    })
     setSaving(false)
     onClose()
   }
@@ -53,8 +67,6 @@ export default function BookDetailModal({ book, onClose }) {
     await deleteBook(book.id)
     onClose()
   }
-
-  const currentStatus = STATUS_OPTIONS.find((s) => s.value === status)
 
   return (
     <div
@@ -100,6 +112,17 @@ export default function BookDetailModal({ book, onClose }) {
               <p className="text-xs text-slate-600 mt-2">
                 Added {new Date(book.dateAdded).toLocaleDateString()}
               </p>
+              <a
+                href={getKoboSearchUrl(book.title, book.authors?.[0])}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-2 text-xs text-amber-400 hover:text-amber-300"
+              >
+                Search on Kobo
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </a>
             </div>
           </div>
 
@@ -132,6 +155,41 @@ export default function BookDetailModal({ book, onClose }) {
               Rating {rating ? `(${rating}/5)` : '(not rated)'}
             </label>
             <StarPicker value={rating} onChange={setRating} />
+          </div>
+
+          {/* Series */}
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Series
+            </label>
+            <div className="grid grid-cols-[1fr_76px] gap-2">
+              <input
+                value={seriesName}
+                onChange={(e) => setSeriesName(e.target.value)}
+                placeholder="Series name"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              />
+              <input
+                value={seriesVolume}
+                onChange={(e) => setSeriesVolume(e.target.value)}
+                inputMode="numeric"
+                placeholder="#"
+                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              Tags
+            </label>
+            <input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="cozy, epic, Dutch"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+            />
           </div>
 
           {/* Note */}

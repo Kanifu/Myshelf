@@ -1,10 +1,13 @@
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-6'
+const MODEL = import.meta.env.VITE_CLAUDE_MODEL || 'claude-sonnet-4-20250514'
 
-function buildPrompt(books, preferences) {
+function buildPrompt(books, preferences, recommendationHistory = []) {
   const readBooks = books.filter((b) => b.readingStatus === 'read')
   const readingBooks = books.filter((b) => b.readingStatus === 'reading')
   const wantToRead = books.filter((b) => b.readingStatus === 'want_to_read')
+  const dislikedBooks = books.filter((b) => b.rating && b.rating <= 2)
+  const lovedBooks = books.filter((b) => b.rating && b.rating >= 4)
+  const dnfBooks = books.filter((b) => b.readingStatus === 'dnf')
 
   const bookList = (arr) =>
     arr
@@ -17,9 +20,31 @@ function buildPrompt(books, preferences) {
       .join('\n')
 
   const parts = []
+  if (lovedBooks.length) parts.push(`Loved books, strongest positive signals:\n${bookList(lovedBooks)}`)
+  if (dislikedBooks.length) parts.push(`Disliked books, avoid similar patterns:\n${bookList(dislikedBooks)}`)
+  if (dnfBooks.length) parts.push(`Did not finish, strong negative signals:\n${bookList(dnfBooks)}`)
   if (readBooks.length) parts.push(`Books I've read:\n${bookList(readBooks)}`)
   if (readingBooks.length) parts.push(`Currently reading:\n${bookList(readingBooks)}`)
   if (wantToRead.length) parts.push(`Want to read:\n${bookList(wantToRead)}`)
+
+  const rejectedRecommendations = recommendationHistory.filter((rec) => rec.feedback === 'not_for_me')
+  const skippedRecommendations = recommendationHistory.filter((rec) => rec.feedback === 'skipped')
+  const moreLikeThisRecommendations = recommendationHistory.filter((rec) => rec.feedback === 'more_like_this')
+  const recommendationList = (arr) =>
+    arr
+      .slice(0, 20)
+      .map((rec) => `- "${rec.title}" by ${rec.author || 'Unknown'}${rec.reasoning ? ` (${rec.reasoning})` : ''}`)
+      .join('\n')
+
+  if (rejectedRecommendations.length) {
+    parts.push(`Previously rejected recommendations:\n${recommendationList(rejectedRecommendations)}`)
+  }
+  if (skippedRecommendations.length) {
+    parts.push(`Previously skipped recommendations, weaker negative signal:\n${recommendationList(skippedRecommendations)}`)
+  }
+  if (moreLikeThisRecommendations.length) {
+    parts.push(`Asked for more like these recommendations:\n${recommendationList(moreLikeThisRecommendations)}`)
+  }
 
   const genreStr = preferences.preferredGenres?.length
     ? `\nPreferred genres: ${preferences.preferredGenres.join(', ')}`
@@ -50,11 +75,11 @@ Respond ONLY with a valid JSON array (no markdown, no explanation) with this exa
 ]`
 }
 
-export async function getRecommendations(books, preferences, apiKey) {
+export async function getRecommendations(books, preferences, apiKey, recommendationHistory = []) {
   if (!apiKey) throw new Error('No Claude API key configured')
   if (books.length === 0) throw new Error('Your library is empty — add some books first')
 
-  const prompt = buildPrompt(books, preferences)
+  const prompt = buildPrompt(books, preferences, recommendationHistory)
 
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',

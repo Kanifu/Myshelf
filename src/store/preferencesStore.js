@@ -22,12 +22,16 @@ export const usePreferencesStore = create(
       preferredGenres: [],
       preferredLanguage: 'English',
       koboPlusSubscriber: false,
+      readingPaceGoal: null,
+      onboarded: false,
 
       setClaudeApiKey: (key) => set({ claudeApiKey: key }),
       setGoogleBooksApiKey: (key) => set({ googleBooksApiKey: key }),
       setPreferredGenres: (genres) => set({ preferredGenres: genres }),
       setPreferredLanguage: (lang) => set({ preferredLanguage: lang }),
       setKoboPlusSubscriber: (val) => set({ koboPlusSubscriber: val }),
+      setReadingPaceGoal: (goal) => set({ readingPaceGoal: goal }),
+      setOnboarded: (onboarded) => set({ onboarded }),
       updatePreferences: (updates) => set(updates),
     }),
     {

@@ -21,7 +21,12 @@ export default function RecommendationsView() {
     setLoading(true)
     clearError()
     try {
-      const recs = await getRecommendations(books, { preferredGenres, preferredLanguage, koboPlusSubscriber }, claudeApiKey)
+      const recs = await getRecommendations(
+        books,
+        { preferredGenres, preferredLanguage, koboPlusSubscriber },
+        claudeApiKey,
+        recommendations
+      )
 
       // Fetch covers from Google Books in the background
       const recsWithCovers = await Promise.all(
@@ -149,7 +154,7 @@ export default function RecommendationsView() {
         {!loading && recommendations.length > 0 && (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-slate-500">
-              {recommendations.length} recommendations · Generated {new Date(recommendations[0]?.generatedAt).toLocaleDateString()}
+              {recommendations.filter((rec) => rec.active !== false).length} current recommendations · {recommendations.length} stored in history
             </p>
             {recommendations.map((rec, i) => (
               <RecommendationCard key={rec.id} rec={rec} index={i} />
