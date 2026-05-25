@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { db } from '../db/database'
 
-export const useRecommendationStore = create((set, get) => ({
+export const useRecommendationStore = create((set) => ({
   recommendations: [],
   loading: false,
   error: null,
@@ -16,17 +16,25 @@ export const useRecommendationStore = create((set, get) => ({
   },
 
   setRecommendations: async (recs) => {
-    // Clear old ones and store new batch
-    await db.recommendations.clear()
-    await db.recommendations.bulkAdd(recs)
-    set({ recommendations: recs })
+    const batchId = crypto.randomUUID()
+    const batch = recs.map((rec) => ({
+      ...rec,
+      batchId,
+      active: true,
+    }))
+    const existing = await db.recommendations.toArray()
+    await db.recommendations.bulkPut(existing.map((rec) => ({ ...rec, active: false })))
+    await db.recommendations.bulkAdd(batch)
+    const allRecs = await db.recommendations.orderBy('generatedAt').reverse().toArray()
+    set({ recommendations: allRecs })
   },
 
   updateFeedback: async (id, feedback) => {
-    await db.recommendations.update(id, { feedback })
+    const feedbackAt = feedback ? new Date().toISOString() : null
+    await db.recommendations.update(id, { feedback, feedbackAt })
     set((state) => ({
       recommendations: state.recommendations.map((r) =>
-        r.id === id ? { ...r, feedback } : r
+        r.id === id ? { ...r, feedback, feedbackAt } : r
       ),
     }))
   },

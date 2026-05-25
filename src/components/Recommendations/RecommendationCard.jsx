@@ -1,4 +1,6 @@
 import { useRecommendationStore } from '../../store/recommendationStore'
+import { useLibraryStore } from '../../store/libraryStore'
+import { getKoboSearchUrl } from '../../services/koboService'
 
 const FEEDBACK_OPTIONS = [
   {
@@ -34,15 +36,47 @@ const FEEDBACK_OPTIONS = [
     activeClass: 'bg-slate-600/50 border-slate-500/50 text-slate-300',
     inactiveClass: 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400',
   },
+  {
+    value: 'more_like_this',
+    label: 'More Like This',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M7.977 14.652H2.985m18.03-5.296-3.181-3.183a8.25 8.25 0 0 0-13.803 3.7" />
+      </svg>
+    ),
+    activeClass: 'bg-blue-500/20 border-blue-500/50 text-blue-400',
+    inactiveClass: 'border-slate-700 text-slate-400 hover:border-blue-500/30 hover:text-blue-400',
+  },
 ]
 
 export default function RecommendationCard({ rec, index }) {
   const { updateFeedback } = useRecommendationStore()
+  const { addBook } = useLibraryStore()
 
   async function handleFeedback(value) {
     // Toggle off if clicking same feedback
     await updateFeedback(rec.id, rec.feedback === value ? null : value)
   }
+
+  async function addRecommendedBook(readingStatus) {
+    await addBook({
+      title: rec.title,
+      authors: rec.author ? [rec.author] : [],
+      coverUrl: rec.coverUrl || null,
+      genres: rec.genre ? [rec.genre] : [],
+      series: {
+        name: rec.seriesName || null,
+        volume: rec.seriesVolume || null,
+        totalVolumes: null,
+        status: 'unknown',
+      },
+      readingStatus,
+      source: 'recommendation',
+    })
+    await updateFeedback(rec.id, readingStatus === 'read' ? 'already_read' : 'want_to_read')
+  }
+
+  const koboSearchUrl = rec.koboSearchUrl || getKoboSearchUrl(rec.title, rec.author)
 
   return (
     <div className={`bg-slate-800/60 rounded-2xl border transition-all overflow-hidden ${
@@ -95,7 +129,7 @@ export default function RecommendationCard({ rec, index }) {
 
           {/* Kobo link */}
           <a
-            href={rec.koboSearchUrl}
+            href={koboSearchUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 mt-2 text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors"
@@ -106,6 +140,21 @@ export default function RecommendationCard({ rec, index }) {
             Find on Kobo
           </a>
         </div>
+      </div>
+
+      <div className="px-4 pb-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => addRecommendedBook('want_to_read')}
+          className="py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold"
+        >
+          Add to Want
+        </button>
+        <button
+          onClick={() => addRecommendedBook('read')}
+          className="py-2 rounded-xl bg-slate-700/60 border border-slate-600 text-slate-300 text-xs font-semibold"
+        >
+          Already Read
+        </button>
       </div>
 
       {/* Feedback buttons */}

@@ -55,6 +55,7 @@ export default function LibraryView() {
           <div className="flex gap-1">
             <button
               onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
               className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-slate-700 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -63,6 +64,7 @@ export default function LibraryView() {
             </button>
             <button
               onClick={() => setViewMode('list')}
+              aria-label="List view"
               className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-slate-700 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
