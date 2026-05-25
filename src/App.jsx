@@ -5,6 +5,7 @@ import AddBookSearch from './components/AddBook/AddBookSearch'
 import RecommendationsView from './components/Recommendations/RecommendationsView'
 import SeriesExplorer from './components/SeriesExplorer/SeriesExplorer'
 import SettingsView from './components/Settings/SettingsView'
+import StatsView from './components/Stats/StatsView'
 import Onboarding from './components/Onboarding/Onboarding'
 import { useLibraryStore } from './store/libraryStore'
 import { usePreferencesStore } from './store/preferencesStore'
@@ -29,6 +30,7 @@ export default function App() {
         {activeTab === 'add' && <AddBookSearch onDone={() => setActiveTab('library')} />}
         {activeTab === 'recommendations' && <RecommendationsView />}
         {activeTab === 'series' && <SeriesExplorer />}
+        {activeTab === 'stats' && <StatsView />}
         {activeTab === 'settings' && <SettingsView />}
       </main>
       <NavBar activeTab={activeTab} setActiveTab={setActiveTab} />
