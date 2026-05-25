@@ -18,6 +18,10 @@ export default function LibraryView() {
   const [selectedBook, setSelectedBook] = useState(null)
   const [search, setSearch] = useState('')
 
+  const readCount = books.filter((b) => b.readingStatus === 'read').length
+  const readingCount = books.filter((b) => b.readingStatus === 'reading').length
+  const wantCount = books.filter((b) => b.readingStatus === 'want_to_read').length
+
   const filtered = books.filter((b) => {
     const matchesFilter = filter === 'all' || b.readingStatus === filter
     const matchesSearch =
@@ -34,7 +38,19 @@ export default function LibraryView() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-100">My Shelf</h1>
-            <p className="text-xs text-slate-500">{books.length} {books.length === 1 ? 'book' : 'books'}</p>
+            {books.length === 0 ? (
+              <p className="text-xs text-slate-500">0 books</p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                {books.length} {books.length === 1 ? 'book' : 'books'}
+                {readCount > 0 && <span className="text-slate-600"> · </span>}
+                {readCount > 0 && <span className="text-emerald-600">{readCount} read</span>}
+                {readingCount > 0 && <span className="text-slate-600"> · </span>}
+                {readingCount > 0 && <span className="text-sky-600">{readingCount} reading</span>}
+                {wantCount > 0 && <span className="text-slate-600"> · </span>}
+                {wantCount > 0 && <span className="text-amber-600">{wantCount} want to read</span>}
+              </p>
+            )}
           </div>
           <div className="flex gap-1">
             <button

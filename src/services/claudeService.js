@@ -1,7 +1,7 @@
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 const MODEL = 'claude-sonnet-4-6'
 
-function buildPrompt(books, preferences) {
+function buildPrompt(books, preferences, rejectedTitles = []) {
   const readBooks = books.filter((b) => b.readingStatus === 'read')
   const readingBooks = books.filter((b) => b.readingStatus === 'reading')
   const wantToRead = books.filter((b) => b.readingStatus === 'want_to_read')
@@ -34,7 +34,7 @@ function buildPrompt(books, preferences) {
 ${parts.join('\n\n')}
 ${genreStr}${langStr}${koboStr}
 
-Based on my reading history and preferences, recommend exactly 7 books I haven't read yet. For each book provide a Kobo search URL in the format https://www.kobo.com/nl/nl/search?query=TITLE+AUTHOR (URL-encoded).
+${rejectedTitles.length > 0 ? `Books I was previously recommended but didn't want:\n${rejectedTitles.map((t) => `- ${t}`).join('\n')}\n\n` : ''}Based on my reading history and preferences, recommend exactly 7 books I haven't read yet and that are NOT in my rejected list above. For each book provide a Kobo search URL in the format https://www.kobo.com/nl/nl/search?query=TITLE+AUTHOR (URL-encoded).
 
 Respond ONLY with a valid JSON array (no markdown, no explanation) with this exact structure:
 [
@@ -50,11 +50,11 @@ Respond ONLY with a valid JSON array (no markdown, no explanation) with this exa
 ]`
 }
 
-export async function getRecommendations(books, preferences, apiKey) {
+export async function getRecommendations(books, preferences, apiKey, rejectedTitles = []) {
   if (!apiKey) throw new Error('No Claude API key configured')
   if (books.length === 0) throw new Error('Your library is empty — add some books first')
 
-  const prompt = buildPrompt(books, preferences)
+  const prompt = buildPrompt(books, preferences, rejectedTitles)
 
   const response = await fetch(CLAUDE_API_URL, {
     method: 'POST',

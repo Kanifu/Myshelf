@@ -21,7 +21,10 @@ export default function RecommendationsView() {
     setLoading(true)
     clearError()
     try {
-      const recs = await getRecommendations(books, { preferredGenres, preferredLanguage, koboPlusSubscriber }, claudeApiKey)
+      const rejectedTitles = recommendations
+        .filter((r) => r.feedback === 'not_for_me')
+        .map((r) => `${r.title} by ${r.author}`)
+      const recs = await getRecommendations(books, { preferredGenres, preferredLanguage, koboPlusSubscriber }, claudeApiKey, rejectedTitles)
 
       // Fetch covers from Google Books in the background
       const recsWithCovers = await Promise.all(
