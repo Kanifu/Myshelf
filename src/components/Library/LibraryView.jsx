@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useLibraryStore } from '../../store/libraryStore'
+import { usePreferencesStore } from '../../store/preferencesStore'
 import BookCard from './BookCard'
 import BookDetailModal from './BookDetailModal'
 
@@ -13,10 +14,32 @@ const STATUS_FILTERS = [
 
 export default function LibraryView() {
   const { books, loading } = useLibraryStore()
+  const readingPaceGoal = usePreferencesStore((s) => s.readingPaceGoal)
   const [filter, setFilter] = useState('all')
   const [viewMode, setViewMode] = useState('grid')
   const [selectedBook, setSelectedBook] = useState(null)
   const [search, setSearch] = useState('')
+
+  // Breakdown counts — issue #7
+  const breakdown = useMemo(() => ({
+    read: books.filter((b) => b.readingStatus === 'read').length,
+    reading: books.filter((b) => b.readingStatus === 'reading').length,
+    wantToRead: books.filter((b) => b.readingStatus === 'want_to_read').length,
+    dnf: books.filter((b) => b.readingStatus === 'dnf').length,
+  }), [books])
+
+  // Reading pace progress this month — issue #21
+  const paceProgress = useMemo(() => {
+    if (!readingPaceGoal) return null
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const readThisMonth = books.filter(
+      (b) => b.readingStatus === 'read' && b.dateFinished && b.dateFinished >= monthStart
+    ).length
+    return { readThisMonth, goal: Number(readingPaceGoal) }
+  }, [books, readingPaceGoal])
+
+  const monthName = new Date().toLocaleString('en', { month: 'long' })
 
   const filtered = books.filter((b) => {
     const matchesFilter = filter === 'all' || b.readingStatus === filter
@@ -34,7 +57,37 @@ export default function LibraryView() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-100">My Shelf</h1>
-            <p className="text-xs text-slate-500">{books.length} {books.length === 1 ? 'book' : 'books'}</p>
+            {/* Issue #7 — book count breakdown */}
+            {books.length === 0 ? (
+              <p className="text-xs text-slate-500">No books yet</p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                <span className="text-slate-400 font-medium">{books.length}</span> books
+                {breakdown.read > 0 && <> · <span className="text-emerald-400">{breakdown.read}</span> read</>}
+                {breakdown.reading > 0 && <> · <span className="text-amber-400">{breakdown.reading}</span> reading</>}
+                {breakdown.wantToRead > 0 && <> · <span className="text-slate-400">{breakdown.wantToRead}</span> to read</>}
+                {breakdown.dnf > 0 && <> · <span className="text-slate-600">{breakdown.dnf}</span> DNF</>}
+              </p>
+            )}
+            {/* Issue #21 — reading pace goal progress */}
+            {paceProgress && (
+              <div className="mt-1.5">
+                <div className="flex items-center justify-between mb-0.5">
+                  <p className="text-[10px] text-slate-500">
+                    {monthName}: <span className="text-amber-400 font-medium">{paceProgress.readThisMonth}</span> / {paceProgress.goal} books
+                  </p>
+                  {paceProgress.readThisMonth >= paceProgress.goal && (
+                    <span className="text-[10px] text-emerald-400">🎉 Goal reached!</span>
+                  )}
+                </div>
+                <div className="h-1 w-32 bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (paceProgress.readThisMonth / paceProgress.goal) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex gap-1">
             <button
