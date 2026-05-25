@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRecommendationStore } from '../../store/recommendationStore'
 import { useLibraryStore } from '../../store/libraryStore'
 import { usePreferencesStore } from '../../store/preferencesStore'
@@ -12,6 +12,7 @@ export default function RecommendationsView() {
   const { books } = useLibraryStore()
   const { claudeApiKey, googleBooksApiKey, preferredGenres, preferredLanguage, koboPlusSubscriber } =
     usePreferencesStore()
+  const [showHistory, setShowHistory] = useState(false)
 
   useEffect(() => {
     loadRecommendations()
@@ -47,6 +48,19 @@ export default function RecommendationsView() {
       setLoading(false)
     }
   }
+
+  // Issue #22 — group past batches for history view
+  const historyBatches = useMemo(() => {
+    const inactive = recommendations.filter((r) => r.active === false && r.batchId)
+    const byBatch = {}
+    for (const rec of inactive) {
+      if (!byBatch[rec.batchId]) {
+        byBatch[rec.batchId] = { batchId: rec.batchId, date: rec.generatedAt, recs: [] }
+      }
+      byBatch[rec.batchId].recs.push(rec)
+    }
+    return Object.values(byBatch).sort((a, b) => b.date.localeCompare(a.date))
+  }, [recommendations])
 
   const noApiKey = !claudeApiKey
 
@@ -159,6 +173,85 @@ export default function RecommendationsView() {
             {recommendations.map((rec, i) => (
               <RecommendationCard key={rec.id} rec={rec} index={i} />
             ))}
+          </div>
+        )}
+
+        {/* Issue #22 — Recommendation history batches */}
+        {!loading && historyBatches.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-300 transition-colors mb-3"
+            >
+              <svg
+                className={`w-3.5 h-3.5 transition-transform ${showHistory ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+              {showHistory ? 'Hide' : 'Show'} recommendation history ({historyBatches.length} past {historyBatches.length === 1 ? 'batch' : 'batches'})
+            </button>
+
+            {showHistory && (
+              <div className="flex flex-col gap-4">
+                {historyBatches.map((batch) => {
+                  const actedOn = batch.recs.filter((r) => r.feedback === 'want_to_read' || r.feedback === 'already_read').length
+                  const rejected = batch.recs.filter((r) => r.feedback === 'not_for_me').length
+                  const moreLike = batch.recs.filter((r) => r.feedback === 'more_like_this').length
+                  const date = new Date(batch.date).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })
+                  return (
+                    <details key={batch.batchId} className="group bg-slate-800/40 rounded-xl border border-slate-700/40 overflow-hidden">
+                      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none">
+                        <div>
+                          <p className="text-sm font-medium text-slate-300">{date}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {batch.recs.length} recs
+                            {actedOn > 0 && <> · <span className="text-emerald-400">{actedOn} added</span></>}
+                            {rejected > 0 && <> · <span className="text-rose-400">{rejected} rejected</span></>}
+                            {moreLike > 0 && <> · <span className="text-blue-400">{moreLike} more-like-this</span></>}
+                          </p>
+                        </div>
+                        <svg className="w-4 h-4 text-slate-500 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </summary>
+                      <div className="px-4 pb-3 flex flex-col gap-2 border-t border-slate-700/40 pt-3">
+                        {batch.recs.map((rec) => (
+                          <div key={rec.id} className="flex items-center gap-3">
+                            {rec.coverUrl ? (
+                              <img src={rec.coverUrl} alt="" className="w-8 h-12 object-cover rounded flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-12 rounded bg-slate-700 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-slate-300 line-clamp-1">{rec.title}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{rec.author}</p>
+                            </div>
+                            {rec.feedback && (
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full flex-shrink-0 ${
+                                rec.feedback === 'want_to_read' || rec.feedback === 'already_read'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : rec.feedback === 'not_for_me'
+                                  ? 'bg-rose-500/20 text-rose-400'
+                                  : rec.feedback === 'more_like_this'
+                                  ? 'bg-blue-500/20 text-blue-400'
+                                  : 'bg-slate-700 text-slate-400'
+                              }`}>
+                                {rec.feedback === 'want_to_read' ? 'Added' :
+                                 rec.feedback === 'already_read' ? 'Read' :
+                                 rec.feedback === 'not_for_me' ? 'Rejected' :
+                                 rec.feedback === 'more_like_this' ? 'More like this' :
+                                 rec.feedback === 'skipped' ? 'Skipped' : rec.feedback}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
