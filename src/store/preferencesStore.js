@@ -24,6 +24,7 @@ export const usePreferencesStore = create(
       koboPlusSubscriber: false,
       readingPaceGoal: null,
       onboarded: false,
+      theme: 'dark', // 'light' | 'dark' | 'system'
 
       setClaudeApiKey: (key) => set({ claudeApiKey: key }),
       setGoogleBooksApiKey: (key) => set({ googleBooksApiKey: key }),
@@ -32,6 +33,7 @@ export const usePreferencesStore = create(
       setKoboPlusSubscriber: (val) => set({ koboPlusSubscriber: val }),
       setReadingPaceGoal: (goal) => set({ readingPaceGoal: goal }),
       setOnboarded: (onboarded) => set({ onboarded }),
+      setTheme: (theme) => set({ theme }),
       updatePreferences: (updates) => set(updates),
     }),
     {
