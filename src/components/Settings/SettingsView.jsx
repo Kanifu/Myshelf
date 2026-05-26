@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePreferencesStore, GENRE_OPTIONS } from '../../store/preferencesStore'
 import { useLibraryStore } from '../../store/libraryStore'
 import { booksToCsv, parseLibraryCsv } from '../../services/koboService'
@@ -13,6 +13,16 @@ export default function SettingsView() {
   const [preferredLanguage, setPreferredLanguage] = useState(prefs.preferredLanguage)
   const [koboPlusSubscriber, setKoboPlusSubscriber] = useState(prefs.koboPlusSubscriber)
   const [readingPaceGoal, setReadingPaceGoal] = useState(prefs.readingPaceGoal || '')
+  // Sync local state when store rehydrates from localStorage after mount
+  useEffect(() => {
+    setClaudeApiKey(prefs.claudeApiKey)
+    setGoogleBooksApiKey(prefs.googleBooksApiKey)
+    setPreferredGenres(prefs.preferredGenres)
+    setPreferredLanguage(prefs.preferredLanguage)
+    setKoboPlusSubscriber(prefs.koboPlusSubscriber)
+    setReadingPaceGoal(prefs.readingPaceGoal || '')
+  }, [prefs.claudeApiKey, prefs.googleBooksApiKey, prefs.preferredGenres, prefs.preferredLanguage, prefs.koboPlusSubscriber, prefs.readingPaceGoal])
+
   const [saved, setSaved] = useState(false)
   const [importMessage, setImportMessage] = useState('')
   const [showClaudeKey, setShowClaudeKey] = useState(false)

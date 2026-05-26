@@ -49,7 +49,8 @@ function buildPrompt(books, preferences, recommendationHistory = []) {
   const genreStr = preferences.preferredGenres?.length
     ? `\nPreferred genres: ${preferences.preferredGenres.join(', ')}`
     : ''
-  const langStr = `\nPreferred language: ${preferences.preferredLanguage || 'English'}`
+  const lang = preferences.preferredLanguage || 'English'
+  const langStr = `\nPreferred language: ${lang}. IMPORTANT: Write the "reasoning" field in ${lang === 'Dutch' ? 'Dutch (Nederlands)' : 'English'}.`
   const koboStr = preferences.koboPlusSubscriber
     ? '\nI am a Kobo Plus subscriber — prefer books available on Kobo Plus.'
     : ''
@@ -75,6 +76,51 @@ Respond ONLY with a valid JSON array (no markdown, no explanation) with this exa
 ]`
 }
 
+export async function identifyBookFromImage(base64Image, apiKey) {
+  if (!apiKey) throw new Error('No Claude API key configured')
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 256,
+      system: 'You identify books from photos. Respond only in valid JSON. No markdown.',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
+            },
+            {
+              type: 'text',
+              text: 'What book is shown in this photo? Return ONLY: {"title": "...", "author": "...", "confidence": "high"|"medium"|"low"}',
+            },
+          ],
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  const text = data.content?.[0]?.text || ''
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('Could not identify book from image')
+  return JSON.parse(jsonMatch[0])
+}
+
 export async function getRecommendations(books, preferences, apiKey, recommendationHistory = []) {
   if (!apiKey) throw new Error('No Claude API key configured')
   if (books.length === 0) throw new Error('Your library is empty — add some books first')
@@ -92,7 +138,7 @@ export async function getRecommendations(books, preferences, apiKey, recommendat
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 2048,
-      system: 'You are a personal book recommendation engine. Respond only in valid JSON array. No markdown.',
+      system: `You are a personal book recommendation engine. Respond only in valid JSON array. No markdown. Write all "reasoning" fields in ${preferences.preferredLanguage === 'Dutch' ? 'Dutch (Nederlands)' : 'English'}.`,
       messages: [{ role: 'user', content: prompt }],
     }),
   })

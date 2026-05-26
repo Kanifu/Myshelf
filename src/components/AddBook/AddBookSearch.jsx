@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { searchBooks, searchSeriesBooks } from '../../services/googleBooksService'
 import { searchOpenLibrarySeries } from '../../services/openLibraryService'
+import { identifyBookFromImage } from '../../services/claudeService'
 import { useLibraryStore } from '../../store/libraryStore'
 import { usePreferencesStore } from '../../store/preferencesStore'
 
@@ -55,8 +56,83 @@ export default function AddBookSearch({ onDone }) {
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
 
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraScanning, setCameraScanning] = useState(false)
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
+
   const { addBook, importBooks } = useLibraryStore()
   const googleBooksApiKey = usePreferencesStore((s) => s.googleBooksApiKey)
+  const claudeApiKey = usePreferencesStore((s) => s.claudeApiKey)
+
+  // Stop camera stream when leaving photo mode
+  useEffect(() => {
+    if (mode !== 'photo' && !cameraActive) return
+    return () => stopCamera()
+  }, [mode])
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setCameraActive(false)
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      streamRef.current = stream
+      if (videoRef.current) videoRef.current.srcObject = stream
+      setCameraActive(true)
+      setSearchError(null)
+    } catch {
+      setSearchError('Camera access denied. Allow camera permission and try again.')
+    }
+  }
+
+  async function captureAndIdentify() {
+    if (!videoRef.current || !claudeApiKey) {
+      if (!claudeApiKey) setSearchError('Claude API key required for photo recognition. Add it in Settings.')
+      return
+    }
+    setCameraScanning(true)
+    setSearchError(null)
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoRef.current.videoWidth
+      canvas.height = videoRef.current.videoHeight
+      canvas.getContext('2d').drawImage(videoRef.current, 0, 0)
+      const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1]
+
+      const result = await identifyBookFromImage(base64, claudeApiKey)
+      stopCamera()
+
+      if (!result.title) throw new Error('Could not identify a book in this photo')
+
+      // Search Google Books for the identified book
+      const query = `${result.title} ${result.author || ''}`.trim()
+      const books = await searchBooks(query, googleBooksApiKey)
+      if (books.length > 0) {
+        setSelected(books[0])
+        setSearchError(null)
+      } else {
+        // Fall back to manual entry with identified title/author
+        setSelected({
+          googleBooksId: `photo-${Date.now()}`,
+          title: result.title,
+          authors: result.author ? [result.author] : [],
+          coverUrl: null,
+          isbn: null,
+          genres: [],
+          series: { name: null, volume: null, totalVolumes: null, status: 'unknown' },
+          source: 'photo',
+        })
+      }
+    } catch (err) {
+      setSearchError(err.message || 'Could not identify book. Try a clearer photo or search manually.')
+    } finally {
+      setCameraScanning(false)
+    }
+  }
 
   async function handleSearch(e) {
     e.preventDefault()
@@ -384,7 +460,7 @@ export default function AddBookSearch({ onDone }) {
             ['manual', 'Manual', 'Google Books'],
             ['voice', 'Voice', listening ? 'Listening...' : 'Tap mic'],
             ['series', 'Series', 'Bulk import'],
-            ['photo', 'Photo', 'Vision v2'],
+            ['photo', 'Photo', 'Scan cover'],
           ].map(([id, label, helper]) => (
             <button
               type="button"
@@ -396,8 +472,9 @@ export default function AddBookSearch({ onDone }) {
                   return
                 }
                 if (id === 'photo') {
-                  setMode('manual')
-                  setSearchError('Photo recognition is planned next. Use manual or voice search for now.')
+                  setMode('photo')
+                  setSearchError(null)
+                  setResults([])
                   return
                 }
                 setMode(id)
@@ -414,6 +491,62 @@ export default function AddBookSearch({ onDone }) {
             </button>
           ))}
         </div>
+
+        {mode === 'photo' && (
+          <div className="flex flex-col items-center gap-4 py-4">
+            {!cameraActive ? (
+              <button
+                type="button"
+                onClick={startCamera}
+                className="flex flex-col items-center gap-3 w-full py-10 rounded-2xl border-2 border-dashed border-slate-700 hover:border-amber-500/50 transition-colors"
+              >
+                <svg className="w-12 h-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                </svg>
+                <div className="text-center">
+                  <p className="text-slate-300 font-semibold">Open Camera</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Point at a book cover to identify it</p>
+                </div>
+              </button>
+            ) : (
+              <div className="w-full flex flex-col items-center gap-3">
+                <div className="relative w-full rounded-2xl overflow-hidden bg-slate-800 aspect-[3/4]">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                  {cameraScanning && (
+                    <div className="absolute inset-0 bg-slate-900/70 flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-sm text-slate-300">Identifying book...</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-3 w-full">
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 text-sm font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={captureAndIdentify}
+                    disabled={cameraScanning}
+                    className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 text-sm font-bold disabled:opacity-50"
+                  >
+                    Identify Book
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {mode === 'series' && seriesResults.length > 0 && (
           <div className="flex flex-col gap-3">

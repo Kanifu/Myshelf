@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRecommendationStore } from '../../store/recommendationStore'
 import { useLibraryStore } from '../../store/libraryStore'
 import { usePreferencesStore } from '../../store/preferencesStore'
@@ -48,7 +48,24 @@ export default function RecommendationsView() {
     }
   }
 
+  const [showHistory, setShowHistory] = useState(false)
+
   const noApiKey = !claudeApiKey
+
+  // Split recommendations: current batch (active) vs history (inactive)
+  const currentRecs = recommendations.filter((r) => r.active !== false)
+  const historyRecs = recommendations.filter((r) => r.active === false)
+
+  // Group history by batchId
+  const historyBatches = historyRecs.reduce((acc, rec) => {
+    const key = rec.batchId || 'unknown'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(rec)
+    return acc
+  }, {})
+  const historyBatchList = Object.values(historyBatches).sort(
+    (a, b) => new Date(b[0].generatedAt) - new Date(a[0].generatedAt)
+  )
 
   return (
     <div className="flex flex-col min-h-full">
@@ -75,7 +92,7 @@ export default function RecommendationsView() {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                   </svg>
-                  <span>{recommendations.length ? 'Refresh' : 'Get Recs'}</span>
+                  <span>{currentRecs.length ? 'Refresh' : 'Get Recs'}</span>
                 </>
               )}
             </button>
@@ -150,15 +167,84 @@ export default function RecommendationsView() {
           </div>
         )}
 
-        {/* Recommendations */}
-        {!loading && recommendations.length > 0 && (
+        {/* Current recommendations */}
+        {!loading && currentRecs.length > 0 && (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-slate-500">
-              {recommendations.filter((rec) => rec.active !== false).length} current recommendations · {recommendations.length} stored in history
+              {currentRecs.length} recommendations · {new Date(currentRecs[0]?.generatedAt).toLocaleDateString()}
             </p>
-            {recommendations.map((rec, i) => (
+            {currentRecs.map((rec, i) => (
               <RecommendationCard key={rec.id} rec={rec} index={i} />
             ))}
+          </div>
+        )}
+
+        {/* Recommendation history */}
+        {!loading && historyBatchList.length > 0 && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowHistory((v) => !v)}
+              className="flex items-center justify-between w-full py-3 text-left"
+            >
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                History · {historyBatchList.length} past {historyBatchList.length === 1 ? 'batch' : 'batches'}
+              </span>
+              <svg
+                className={`w-4 h-4 text-slate-500 transition-transform ${showHistory ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            {showHistory && (
+              <div className="flex flex-col gap-3 mt-1">
+                {historyBatchList.map((batch) => {
+                  const date = new Date(batch[0].generatedAt).toLocaleDateString()
+                  const actedOn = batch.filter((r) => r.feedback === 'want_to_read' || r.feedback === 'already_read').length
+                  const rejected = batch.filter((r) => r.feedback === 'not_for_me').length
+                  return (
+                    <div key={batch[0].batchId} className="bg-slate-800/60 rounded-xl border border-slate-700/50 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-slate-300">{date}</p>
+                        <p className="text-[10px] text-slate-500">{batch.length} recs</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {actedOn > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
+                            {actedOn} added
+                          </span>
+                        )}
+                        {rejected > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400">
+                            {rejected} rejected
+                          </span>
+                        )}
+                        {actedOn === 0 && rejected === 0 && (
+                          <span className="text-[10px] text-slate-600">No feedback given</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {batch.map((r) => (
+                          <span
+                            key={r.id}
+                            title={`${r.title} — ${r.feedback || 'no feedback'}`}
+                            className={`text-[10px] px-1.5 py-0.5 rounded truncate max-w-[120px] ${
+                              r.feedback === 'want_to_read' ? 'bg-emerald-500/10 text-emerald-400' :
+                              r.feedback === 'not_for_me' ? 'bg-rose-500/10 text-rose-400' :
+                              r.feedback === 'skipped' ? 'bg-slate-700 text-slate-500' :
+                              'bg-slate-700/50 text-slate-500'
+                            }`}
+                          >
+                            {r.title}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
