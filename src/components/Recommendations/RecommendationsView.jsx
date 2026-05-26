@@ -1,10 +1,53 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRecommendationStore } from '../../store/recommendationStore'
 import { useLibraryStore } from '../../store/libraryStore'
 import { usePreferencesStore } from '../../store/preferencesStore'
 import { getRecommendations } from '../../services/claudeService'
 import { searchBooksByTitleAndAuthor } from '../../services/googleBooksService'
 import RecommendationCard from './RecommendationCard'
+
+function formatBatchDate(isoString) {
+  if (!isoString) return ''
+  const d = new Date(isoString)
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function BatchHistoryRow({ batchId, recs }) {
+  const [open, setOpen] = useState(false)
+
+  const actedOn = recs.filter((r) => r.feedback === 'want_to_read' || r.feedback === 'already_read' || r.feedback === 'more_like_this').length
+  const rejected = recs.filter((r) => r.feedback === 'not_for_me').length
+  const skipped  = recs.filter((r) => r.feedback === 'skipped').length
+  const date = formatBatchDate(recs[0]?.generatedAt)
+
+  return (
+    <div className="bg-slate-800/40 rounded-xl border border-slate-700/40 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-800/60 transition-colors"
+      >
+        <div>
+          <p className="text-xs font-semibold text-slate-300">{date}</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {recs.length} recommendations
+            {actedOn > 0 && <span className="text-emerald-500/80"> · {actedOn} acted on</span>}
+            {rejected > 0 && <span className="text-rose-500/70"> · {rejected} rejected</span>}
+            {skipped > 0 && <span className="text-slate-500"> · {skipped} skipped</span>}
+          </p>
+        </div>
+        <span className="text-slate-500 text-sm">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-700/40 flex flex-col gap-3 p-3">
+          {recs.map((rec, i) => (
+            <RecommendationCard key={rec.id} rec={rec} index={i} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function RecommendationsView() {
   const { recommendations, loading, error, loadRecommendations, setRecommendations, setLoading, setError, clearError } =
@@ -48,6 +91,26 @@ export default function RecommendationsView() {
     }
   }
 
+  // Split active batch from history
+  const activeRecs = useMemo(
+    () => recommendations.filter((r) => r.active !== false),
+    [recommendations]
+  )
+
+  const historyBatches = useMemo(() => {
+    const pastRecs = recommendations.filter((r) => r.active === false)
+    const groups = {}
+    for (const rec of pastRecs) {
+      const key = rec.batchId ?? rec.generatedAt ?? rec.id
+      if (!groups[key]) groups[key] = []
+      groups[key].push(rec)
+    }
+    // Sort batches newest first
+    return Object.entries(groups).sort(
+      ([, a], [, b]) => new Date(b[0].generatedAt) - new Date(a[0].generatedAt)
+    )
+  }, [recommendations])
+
   const noApiKey = !claudeApiKey
 
   return (
@@ -75,7 +138,7 @@ export default function RecommendationsView() {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                   </svg>
-                  <span>{recommendations.length ? 'Refresh' : 'Get Recs'}</span>
+                  <span>{activeRecs.length ? 'Refresh' : 'Get Recs'}</span>
                 </>
               )}
             </button>
@@ -150,20 +213,21 @@ export default function RecommendationsView() {
           </div>
         )}
 
-        {/* Recommendations */}
-        {!loading && recommendations.length > 0 && (
+        {/* Current recommendations */}
+        {!loading && activeRecs.length > 0 && (
           <div className="flex flex-col gap-4">
             <p className="text-xs text-slate-500">
-              {recommendations.filter((rec) => rec.active !== false).length} current recommendations · {recommendations.length} stored in history
+              {activeRecs.length} current recommendations
+              {historyBatches.length > 0 && ` · ${historyBatches.length} past ${historyBatches.length === 1 ? 'batch' : 'batches'} in history`}
             </p>
-            {recommendations.map((rec, i) => (
+            {activeRecs.map((rec, i) => (
               <RecommendationCard key={rec.id} rec={rec} index={i} />
             ))}
           </div>
         )}
 
-        {/* No recs yet, has api key and books */}
-        {!loading && !error && recommendations.length === 0 && !noApiKey && books.length > 0 && (
+        {/* No recs yet */}
+        {!loading && !error && activeRecs.length === 0 && !noApiKey && books.length > 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
               <svg className="w-10 h-10 text-amber-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -171,7 +235,24 @@ export default function RecommendationsView() {
               </svg>
             </div>
             <p className="text-slate-300 font-semibold text-lg">No recommendations yet</p>
-            <p className="text-slate-500 text-sm mt-1">Tap "Get Recs" to get started</p>
+            <p className="text-slate-500 text-sm mt-1">Tap \"Get Recs\" to get started</p>
+          </div>
+        )}
+
+        {/* History section */}
+        {historyBatches.length > 0 && (
+          <div className="mt-8 flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-slate-800" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">History</p>
+              <div className="flex-1 h-px bg-slate-800" />
+            </div>
+            <p className="text-[11px] text-slate-600 text-center -mt-1">
+              Past recommendation batches — tap to expand
+            </p>
+            {historyBatches.map(([batchId, recs]) => (
+              <BatchHistoryRow key={batchId} batchId={batchId} recs={recs} />
+            ))}
           </div>
         )}
       </div>

@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/*
+  Dark-mode variant: applies when an ancestor has the `dark` class.
+  This is the Tailwind v4 way to opt into class-based dark mode.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
 * {
   box-sizing: border-box;
 }
@@ -10,6 +16,12 @@ body {
   color: #e2e8f0;
   font-family: system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Light mode body overrides (when .dark is NOT on <html>) */
+html:not(.dark) body {
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
 #root {
@@ -27,7 +39,7 @@ body {
   display: none;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar (dark) */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -37,4 +49,12 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 2px;
+}
+
+/* Custom scrollbar (light) */
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #94a3b8;
 }

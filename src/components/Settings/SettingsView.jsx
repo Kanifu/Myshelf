@@ -3,6 +3,12 @@ import { usePreferencesStore, GENRE_OPTIONS } from '../../store/preferencesStore
 import { useLibraryStore } from '../../store/libraryStore'
 import { booksToCsv, parseLibraryCsv } from '../../services/koboService'
 
+const THEME_OPTIONS = [
+  { value: 'light', label: '☀️ Light' },
+  { value: 'dark',  label: '🌙 Dark' },
+  { value: 'system', label: '💻 System' },
+]
+
 export default function SettingsView() {
   const prefs = usePreferencesStore()
   const { books, importBooks } = useLibraryStore()
@@ -17,6 +23,9 @@ export default function SettingsView() {
   const [importMessage, setImportMessage] = useState('')
   const [showClaudeKey, setShowClaudeKey] = useState(false)
   const [showGoogleKey, setShowGoogleKey] = useState(false)
+
+  // theme is saved immediately via setTheme (no Save button needed for instant feedback)
+  const currentTheme = prefs.theme ?? 'dark'
 
   function toggleGenre(genre) {
     setPreferredGenres((prev) =>
@@ -80,11 +89,33 @@ export default function SettingsView() {
   return (
     <div className="flex flex-col min-h-full">
       {/* Header */}
-      <div className="px-4 pt-12 pb-4 bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
+      <div className="px-4 pt-12 pb-4 bg-slate-900 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-800">
         <h1 className="text-2xl font-bold text-slate-100">Settings</h1>
       </div>
 
       <div className="flex-1 px-4 py-6 flex flex-col gap-6">
+        {/* Appearance / Theme */}
+        <section>
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Appearance</h2>
+          <div className="flex gap-2">
+            {THEME_OPTIONS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => prefs.setTheme(value)}
+                className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all ${
+                  currentTheme === value
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-400'
+                    : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-600">Takes effect immediately — no save needed.</p>
+        </section>
+
         {/* API Keys */}
         <section>
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">API Keys</h2>
